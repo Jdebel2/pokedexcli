@@ -22,6 +22,8 @@ type Config struct {
 	Next     string
 	Previous string
 	Area     string
+	Target   string
+	Pokedex  map[string]PokemonResult
 }
 
 var commands map[string]cliCommand
@@ -31,7 +33,7 @@ func main() {
 	config := Config{}
 	config.Next = "https://pokeapi.co/api/v2/location-area/"
 	config.Previous = ""
-
+	config.Pokedex = map[string]PokemonResult{}
 	cache = *pokecache.NewCache(5 * time.Minute)
 
 	commands = map[string]cliCommand{
@@ -49,6 +51,16 @@ func main() {
 			name:        "explore",
 			description: "Explore an area",
 			callback:    commandExplore,
+		},
+		"catch": {
+			name:        "catch",
+			description: "Try to catch a pokemon",
+			callback:    commandCatch,
+		},
+		"inspect": {
+			name:        "inspect",
+			description: "Inspect caught pokemon",
+			callback:    commandInspect,
 		},
 		"help": {
 			name:        "help",
@@ -72,6 +84,12 @@ func main() {
 		if ok {
 			if commandString == "explore" {
 				config.Area = cleanedInput[1]
+			}
+			if commandString == "catch" {
+				config.Target = cleanedInput[1]
+			}
+			if commandString == "inspect" {
+				config.Target = cleanedInput[1]
 			}
 			command.callback(&config)
 		} else {
@@ -147,6 +165,34 @@ func commandExplore(config *Config) error {
 		log.Fatal(err)
 	}
 	cache.Add(cacheKey, content)
+	return nil
+}
+
+func commandCatch(config *Config) error {
+	var p PokemonResult
+	val, ok := cache.Get(config.Target)
+	if ok {
+		var pokemonResult PokemonResult
+		if err := json.Unmarshal(val, &pokemonResult); err != nil {
+			log.Fatal(err)
+		}
+		p = pokemonResult
+		catchPokemon(config, p)
+		return nil
+	}
+	cacheKey := config.Target
+	p = getPokemonByName(config)
+	content, err := json.Marshal(p)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cache.Add(cacheKey, content)
+	catchPokemon(config, p)
+	return nil
+}
+
+func commandInspect(config *Config) error {
+	inspectPokemon(config)
 	return nil
 }
 
